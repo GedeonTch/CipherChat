@@ -6,7 +6,8 @@
 
 Une messagerie Web légère, bilingue et éphémère dans un salon unique **#general**. Chiffrement des messages dans le navigateur, sans compte, base de données ni historique serveur.
 
-> **Statut :** .
+> **En ligne :** [Ouvrir CipherChat](https://cipherchat-0fhm.onrender.com) · [État du service](https://cipherchat-0fhm.onrender.com/health)
+> Le service gratuit peut démarrer lentement après une période de veille.
 
 ![Accueil sombre](docs/home-dark.png)
 
@@ -149,7 +150,7 @@ Configurer un contrôle HTTP externe de `/health` toutes les cinq minutes si le 
 
 ## Liens publics
 
-- Application Render : **à renseigner après création et vérification**.
+- Application Render : **https://cipherchat-0fhm.onrender.com**.
 - Code source Web : [github.com/GedeonTch/CipherChat](https://github.com/GedeonTch/CipherChat).
 - Version CLI : [github.com/GedeonTch/CipherChat-CLI](https://github.com/GedeonTch/CipherChat-CLI).
 - L'aperçu de développement de l'environnement de travail n'est pas un déploiement Render.
@@ -159,3 +160,18 @@ Configurer un contrôle HTTP externe de `/health` toutes les cinq minutes si le 
 **Créé par GEDEON CIBANVUNYA**  
 Contact : [tchibanvunyagedeon@gmail.com](mailto:tchibanvunyagedeon@gmail.com)  
 © 2026
+
+## Variables d’environnement
+
+À renseigner dans `.env` en local et dans **Environment** sur Render. Le fichier `.env` local n’est pas transféré automatiquement à Render.
+
+| Variable | Rôle et valeur attendue |
+|---|---|
+| `CHAT_KDF_SALT` | Sel public de 16 octets, soit exactement 32 caractères hexadécimaux. Réutiliser la même valeur entre déploiements ; ce n’est ni une phrase secrète ni une clé AES. |
+| `ALLOWED_ORIGINS` | Origines exactes autorisées à ouvrir le WebSocket. En production : `https://cipherchat-0fhm.onrender.com`, sans slash final, chemin ou guillemets. En local : `http://localhost:8000`. |
+| `PORT` | Port d’écoute ; `8000` en local, fourni automatiquement par Render. |
+| `PYTHON_VERSION` | Version Python sélectionnée par Render ; configuration recommandée : `3.12.10`. |
+
+Le sel est publié aux navigateurs pour la dérivation PBKDF2. La phrase secrète et la clé AES restent côté navigateur. La vérification d’Origin n’est pas une authentification utilisateur.
+
+Le contrôle HTTP public `/health` a répondu **200** avec `{"status":"ok"}` lors de la préparation de cette mise à jour. Cela ne certifie ni la disponibilité continue ni un test complet du chat en production. Aucun moniteur externe n’est déclaré configuré.
