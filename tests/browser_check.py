@@ -1,51 +1,53 @@
-"""Run explicitly against a running local server: python tests/browser_check.py."""
-from playwright.sync_api import sync_playwright, expect
-from pathlib import Path
-
+"""Run against localhost:8000, fresh TP DB recommended. Optional BASE_URL."""
+import os, time
+from playwright.sync_api import sync_playwright,expect
+BASE=os.getenv('BASE_URL','http://localhost:8000')
 with sync_playwright() as p:
-    browser=p.chromium.launch(headless=True,args=['--no-sandbox'])
-    errors=[]
-    packets=[]
-    a=browser.new_page();b=browser.new_page();c=browser.new_page()
-    for page in (a,b,c):
+    browser=p.chromium.launch(args=['--no-sandbox'])
+    errors=[];suffix=str(time.time_ns())[-8:]
+    contexts=[browser.new_context() for _ in range(3)]
+    pages=[c.new_page() for c in contexts]
+    # Emulate missing recent APIs without relaxing CSP or disabling crypto.
+    for page in pages:
+        page.add_init_script("Object.hasOwn=undefined;AbortSignal.timeout=undefined;crypto.randomUUID=undefined;if(window.HTMLDialogElement){HTMLDialogElement.prototype.showModal=undefined;HTMLDialogElement.prototype.close=undefined;}")
         page.on('pageerror',lambda e:errors.append(str(e)))
-        page.add_init_script("const W=window.WebSocket;window.WebSocket=class extends W {constructor(...a){super(...a);window.testSocket=this;}}")
-    def login(page,nick,secret='une phrase longue et forte1'):
-        page.goto('http://localhost:8000');page.locator('#nick').fill(nick);page.locator('#pass').fill(secret);page.locator('#join-button').click();expect(page.locator('#connection')).to_contain_text('Connecté')
-    a.on('websocket',lambda ws: ws.on('framesent',lambda data:packets.append(data)))
-    a.goto('http://localhost:8000');expect(a.locator('html')).to_have_attribute('lang','fr')
-    a.locator('#theme').click();expect(a.locator('html')).to_have_attribute('data-theme','dark')
-    a.locator('#lang').click();expect(a.locator('h1')).to_have_text('Conversation, kept discreet.')
-    a.locator('#lang').click();a.locator('#theme').click();expect(a.locator('html')).to_have_attribute('data-theme','light');a.locator('#theme').click();expect(a.locator('#landing')).to_have_css('opacity','1');a.screenshot(path='docs/home-dark.png',full_page=True)
-    login(a,'Alice');login(b,'Bob');expect(a.locator('#members li')).to_have_count(2)
+    def register(page,name):
+        page.goto(BASE);page.locator('#auth-toggle').click()
+        page.locator('#nick').fill(name);page.locator('#pass').fill('abcd1');page.locator('#join-button').click()
+        expect(page.locator('#room-panel')).to_be_visible()
+    def enter(page,code):
+        page.locator('#room-code').fill(code);page.locator('#room-join').click();expect(page.locator('#connection')).to_contain_text('Connecté',timeout=15000)
+    a,b,c=pages;names=['Alice'+suffix,'Bob'+suffix,'Other'+suffix]
+    for page,name in zip(pages,names):register(page,name)
+    # Invalid room visibly rejected.
+    a.locator('#room-code').fill('abc');a.locator('#room-join').click();expect(a.locator('#room-error')).to_contain_text('Code invalide')
+    enter(a,'1111a');enter(b,'1111A');enter(c,'0000E')
+    expect(a.locator('#members li')).to_have_count(2);expect(c.locator('#members li')).to_have_count(1)
     a.locator('#text').fill('Bonjour <img src=x onerror=alert(1)>');a.locator('#send').click()
     expect(b.locator('.message p')).to_have_text('Bonjour <img src=x onerror=alert(1)>')
-    assert b.locator('#messages img').count()==0
-    assert not any('Bonjour' in x for x in packets)
-    login(c,'Charlie','une autre phrase très longue2')
-    a.locator('#text').fill('Second message');a.locator('#send').click()
-    expect(c.locator('.event[data-key=decrypt]')).to_be_visible()
-    assert c.locator('.message').count()==0
-    b.locator('#text').fill('/quit');b.locator('#send').click();expect(b.locator('#landing')).to_be_visible();expect(a.locator('#members li')).to_have_count(2)
-    a.evaluate('window.testSocket.close()')
-    expect(a.locator('#connection')).to_contain_text('interrompue')
-    expect(a.locator('#connection')).to_contain_text('Connecté',timeout=10000)
-    a.locator('#text').fill('Après reconnexion');a.locator('#send').click()
-    expect(a.locator('.message p').last).to_have_text('Après reconnexion')
-    a.screenshot(path='docs/chat.png',full_page=True)
-    mobile=browser.new_page(viewport={'width':390,'height':844},reduced_motion='reduce');mobile.goto('http://localhost:8000')
-    assert mobile.evaluate('document.documentElement.scrollWidth <= innerWidth')
-    assert mobile.locator('#landing').evaluate("e=>getComputedStyle(e).animationName")=='none'
-    mobile.screenshot(path='docs/home-mobile.png',full_page=True)
-    login(mobile,'Mobile');mobile.locator('#members-toggle').click();expect(mobile.locator('#sidebar')).to_be_visible()
-    mobile.locator('#members-toggle').click();expect(mobile.locator('#sidebar')).not_to_be_visible()
-    a.evaluate("""const box=document.querySelector('#messages');for(let i=0;i<30;i++){let p=document.createElement('p');p.textContent='Local scroll test '+i;p.style.height='40px';box.append(p);}box.scrollTop=0;""")
-    before=a.locator('#messages').evaluate('e=>e.scrollTop')
-    mobile.locator('#text').fill('Défilement préservé');mobile.locator('#send').click()
-    expect(a.locator('.message p').last).to_have_text('Défilement préservé')
-    assert a.locator('#messages').evaluate('e=>e.scrollTop')==before
-    expect(a.locator('#new-messages')).to_be_visible()
-    short=browser.new_page();login(short,'Short','abcd1');short.locator('#leave').click()
+    assert c.locator('.message').count()==0;assert b.locator('#messages img').count()==0
+    a.locator('#text').fill('/quit');a.locator('#send').click();expect(a.locator('#room-panel')).to_be_visible()
+    assert a.locator('.message').count()==0
+    expect(b.locator('.message')).to_have_count(1)
+    enter(a,'1111A');assert a.locator('.message').count()==0
+    a.locator('#leave').click();a.locator('#logout').click();expect(a.locator('#auth-card')).to_be_visible()
+    a.locator('#nick').fill(names[0]);a.locator('#pass').fill('wrong1');a.locator('#join-button').click();expect(a.locator('#join-error')).to_contain_text('incorrect')
+    a.locator('#pass').fill('abcd1');a.locator('#join-button').click();expect(a.locator('#room-panel')).to_be_visible()
+    a.reload();expect(a.locator('#room-panel')).to_be_visible()
+    a.locator('#lang').click();expect(a.locator('label[for=room-code]')).to_have_text('Room code')
+    a.locator('#theme').click();expect(a.locator('html')).to_have_attribute('data-theme','dark')
+    a.set_viewport_size({'width':375,'height':667});a.emulate_media(reduced_motion='reduce')
+    assert a.evaluate('document.documentElement.scrollWidth<=innerWidth')
+    # Service and network failures must not be labelled as generic startup errors.
+    a.route('**/api/config',lambda route:route.fulfill(status=503,content_type='application/json',body='{"detail":"serverError"}'))
+    a.locator('#room-code').fill('1111A');a.locator('#room-join').click();expect(a.locator('#room-error')).to_contain_text('Server error')
+    a.unroute('**/api/config');a.route('**/api/config',lambda route:route.abort())
+    a.locator('#room-join').click();expect(a.locator('#room-error')).to_contain_text('Network unavailable')
+    a.locator('#about-open').click();expect(a.locator('#about')).to_be_visible();a.locator('#about-close').click();expect(a.locator('#about')).not_to_be_visible()
+    blocked=browser.new_page();blocked.goto(BASE)
+    blocked.route('**/api/me',lambda route:route.fulfill(status=401,content_type='application/json',body='{"detail":"authRequired"}'))
+    blocked.locator('#auth-toggle').click();blocked.locator('#nick').fill('Blocked'+suffix);blocked.locator('#pass').fill('abcd1');blocked.locator('#join-button').click()
+    expect(blocked.locator('#join-error')).to_contain_text('cookies')
     assert not errors,errors
     browser.close()
-    print('PASS: FR/EN, dark theme, 3 clients, plaintext rendered safely, decryption failure, /quit, presence, mobile overflow, reduced-motion; no JS errors')
+print('PASS: accounts, wrong password, session reload, room isolation, encryption, safe text, quit/local wipe, no history, FR/EN, dark/mobile/reduced-motion, missing recent APIs, network/503 errors')

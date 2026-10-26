@@ -8,3 +8,5 @@ html[data-theme=dark] input[aria-invalid=true]{border-color:#ffadb7}
 .shake{animation:validation-shake .28s ease-in-out}
 @keyframes validation-shake{0%,100%{transform:translateX(0)}25%,75%{transform:translateX(-4px)}50%{transform:translateX(4px)}}
 @media(prefers-reduced-motion:reduce){.shake{animation:none}}
+
+#auth-toggle{width:100%;margin-top:10px}#room-join{width:100%;margin-top:20px}#logout{margin-top:10px}#room-code{text-transform:uppercase}dialog:not([open]){display:none}dialog[open]{display:block}

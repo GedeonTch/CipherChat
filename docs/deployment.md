@@ -37,3 +37,11 @@ Le sel est public. La phrase secrète et la clé AES ne doivent jamais être des
 Choisir un moniteur HTTP dont l'offre autorise une fréquence de cinq minutes (vérifier les conditions actuelles dans son tableau de bord). Saisir l'URL HTTPS réelle suivie de `/health`, attendre HTTP 200, choisir 5 minutes si disponible et configurer les alertes voulues. Enregistrer un résultat de contrôle réel avant de déclarer le moniteur actif.
 
 Pas d'intégration payante ni de compte externe créé automatiquement. La surveillance n'est pas une garantie de maintien éveillé ni de disponibilité. Les connexions et données en mémoire disparaissent après redémarrage ; les clients se reconnectent sans historique. L'interface signale les démarrages lents et les interruptions.
+
+## Évolution comptes et chambres
+
+Les instructions anciennes de création du dépôt ne sont plus nécessaires si le dépôt existe déjà. Après fusion du bundle et push, Render redéploie si l'autodéploiement est actif ; sinon déploiement manuel. Conserver le sel existant et ALLOWED_ORIGINS avec l'origine HTTPS exacte. Aucun changement de build/start.
+
+Nouvelle variable optionnelle CHAT_DB_PATH : chemin SQLite des comptes (accounts.sqlite3 par défaut). Dossier parent existant et accessible en écriture requis. **Sur le filesystem gratuit Render, le fichier et les comptes peuvent disparaître** lors d'un redéploiement/remplacement. Accepté pour ce TP uniquement. Ne jamais commiter le fichier SQLite. Si un disque persistant est ultérieurement choisi, le chemin doit viser ce disque ; aucun service/disque payant n'est créé par le code.
+
+Vérifier après déploiement : création compte, logout/login, deux profils avec même chambre, troisième profil avec code différent, /quit et absence d'historique à la prochaine entrée. Les sessions en mémoire sont invalidées à chaque redémarrage. Le code de chambre sert aussi de secret de chiffrement et est connu du serveur : la documentation de la version précédente sur la confidentialité contre le serveur n'est plus applicable.

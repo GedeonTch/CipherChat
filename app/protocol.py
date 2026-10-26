@@ -15,11 +15,17 @@ class Message(BaseModel):
     iv: str
     ciphertext: str
 
-    @field_validator('type','room','v')
+    @field_validator('type','v')
     @classmethod
     def constants(cls, value, info):
         if value != {'type':'message','room':'#general','v':1}[info.field_name]:
             raise ValueError('protocol')
+        return value
+
+    @field_validator('room')
+    @classmethod
+    def room_code(cls,value):
+        if not re.fullmatch(r'(?=.*[A-Z])(?=.*[0-9])[A-Z0-9]{5,24}',value):raise ValueError('room')
         return value
 
     @field_validator('nick')

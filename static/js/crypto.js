@@ -10,7 +10,7 @@ export async function derive(pass,salt){
 export async function encrypt(key,text,meta){
  if(!text.trim()||[...text].length>2000)throw Error('length');
  const iv=crypto.getRandomValues(new Uint8Array(12));
- const p={type:'message',v:1,room:'#general',...meta,iv:b64(iv)};
+ const p={type:'message',v:1,room:'1111A',...meta,iv:b64(iv)};
  p.ciphertext=b64(new Uint8Array(await crypto.subtle.encrypt({name:'AES-GCM',iv,additionalData:aad(p),tagLength:128},key,encoder.encode(text))));
  validate(p);if(encoder.encode(JSON.stringify(p)).length>8192)throw Error('length');return p;
 }
